@@ -5,6 +5,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
+using System;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 namespace Healthchecks
 {
@@ -21,8 +23,12 @@ namespace Healthchecks
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
-            services.AddDbContext<TodoContext>(opt => opt.UseInMemoryDatabase("TODODB"));
-            services.AddHealthChecks();
+            services.AddHealthChecks()
+                    .AddSqlServer(Configuration["ConnectionStrings:dbConnectionString"], tags: new[] { "db", "all" })
+                    .AddAzureBlobStorage(Configuration["ConnectionStrings:blobConnectionString"],tags: new[] { "AzureStorage", "all" })
+                    .AddAzureQueueStorage(Configuration["ConnectionStrings:QueueConnectionString"], tags: new[] { "AzureStorage", "all" })
+                    .AddUrlGroup(new Uri("https://testdemo.azurewebsites.net/health"),tags: new[] { "testdemoUrl", "all" });
+
             services.AddSwaggerGen();
 
         }
@@ -49,7 +55,15 @@ namespace Healthchecks
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
-                endpoints.MapHealthChecks("/health");
+               
+                endpoints.MapHealthChecks("/health", new HealthCheckOptions()
+                {
+                    Predicate = (check) => check.Tags.Contains("all")
+                });
+                endpoints.MapHealthChecks("/health/AzureStorage", new HealthCheckOptions()
+                {
+                    Predicate = (check) => check.Tags.Contains("AzureStorage")
+                });
             });
         }
     }
